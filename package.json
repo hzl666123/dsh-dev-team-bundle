@@ -9,6 +9,14 @@
     "./client": "./client.js"
   },
   "description": "Dev Team (开发小队) — A/B/C role-pinned agent preset bundle for DeepSeek Harness, with per-conversation Planner/Coder/Reviewer model pickers. Unselected roles follow the session model.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hzl666123/dsh-dev-team-bundle.git"
+  },
+  "homepage": "https://github.com/hzl666123/dsh-dev-team-bundle#readme",
+  "bugs": {
+    "url": "https://github.com/hzl666123/dsh-dev-team-bundle/issues"
+  },
   "license": "MIT",
   "keywords": [
     "dsh",
