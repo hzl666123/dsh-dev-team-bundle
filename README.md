@@ -195,8 +195,9 @@ npm pack
 # → dsh-dev-team-bundle-1.4.1.tgz
 ```
 
-构建好的 tarball 见本仓库的 GitHub Releases（`v1.4.1`）；也可以在上面的目录里
-直接执行 `npm pack` 生成。
+仓库内已经放了一份构建好的
+[`release/dsh-dev-team-bundle-1.4.1.tgz`](release/dsh-dev-team-bundle-1.4.1.tgz)；
+也可以在上面的目录里直接执行 `npm pack` 重新生成。
 
 在另一台机器 / 另一个 profile：
 
