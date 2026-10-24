@@ -1,0 +1,36 @@
+{
+  "name": "dsh-dev-team-bundle",
+  "version": "1.4.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "description": "Dev Team (开发小队) — A/B/C role-pinned agent preset bundle for DeepSeek Harness, with per-conversation Planner/Coder/Reviewer model pickers. Unselected roles follow the session model.",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "agent-preset",
+    "subagent",
+    "dev-team"
+  ],
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

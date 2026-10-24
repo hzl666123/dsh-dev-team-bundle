@@ -1,0 +1,659 @@
+- insert:
+    # ── Dev Team (开发小队) ──────────────────────────────────────────────────
+    # The stock `standard` preset with TWO differences, both self-contained:
+    #
+    #   1. `persona` — the Manager orchestration contract is baked into the
+    #      preset instead of living in a workspace AGENTS.md, so the pipeline
+    #      applies in any workspace with no file to install. The project's test
+    #      and acceptance commands are NOT assumed: the manager establishes
+    #      them in Phase 0 and records them in TASK.md.
+    #   2. `delegation` — the generic subagent / subagent_fork tools are
+    #      replaced by three role-pinned delegation tools (delegate_planner /
+    #      delegate_coder / delegate_reviewer), so a session can only delegate
+    #      through the fixed A/B/C team roles. The control tools stay, so the
+    #      supervisor keeps send_message / list_agents / interrupt_agent.
+    #      `maxDepth: 2` is the absolute depth cap (supervisor = 0), so a role
+    #      child may delegate one more level and those helpers cannot go
+    #      further.
+    #
+    # Each delegate tool selects one of the three internal role presets below
+    # through `agentPreset` (DSH 0.2.1 removed per-tool `persona` config), so a
+    # role child gets its own persona and working tool set instead of inheriting
+    # the manager persona. Each role persona restates the shared team norms.
+    #
+    # Source of the prose: team-mode-src/*.md (manager-persona, norms, role-*).
+    #
+    # A third difference rides along: the user can pick a model for each of the three
+    # roles per conversation from the composer. All three delegate tools still use the
+    # native `spawn` provider; the Host half identifies the role from the tool's
+    # `agentPreset` and injects the Session's chosen route at
+    # `subagents.startActivation`. The choice is recorded in the command lifecycle
+    # events (`/devteam-model`), so it survives restart without a custom session event.
+    # The browser half is `client.js` of this package.
+    - id: dev-team-models
+      name: 'dsh-dev-team-bundle'
+
+    # ── Role presets (the child compositions behind the three delegate tools) ──
+    # DSH 0.2.1 removed `persona` / `toolFilter` from the
+    # `@deepseek-ai/dsh-tool-subagent` config. A fixed role persona is now an
+    # Agent preset selected with `agentPreset`, so each delegate tool points at
+    # one of these three internal presets. They carry the role's persona and the
+    # working tool set (files, shell, jobs, skills, compaction, and one more
+    # delegation level); they do not carry the manager's orchestration contract.
+    # Selecting one directly is supported but only gives that role's work set.
+    - id: preset-dev-team-role-planner
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: dev-team-role-planner
+        name: 开发小队 · A 计划与验收（内部）
+        description: 开发小队内部角色预设（delegate_planner 自动选用）：A 类计划与验收。直接选中只会得到角色工作集，不包含监督者的编排契约。
+        order: 901
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                You are a Class A development agent (`delegate_planner`) in a fixed A/B/C team: the planning and acceptance specialist. You do not implement product code yourself.
+
+                Your duties, in pipeline order:
+
+                - **Gate A — spec challenge.** Write `docs/intent.md`: restate the user's goal as USER OUTCOMES (what the user can actually DO with the deliverable) in the user's own value terms — not inputs, outputs, or internal qualities; 2–4 concrete, observable "definition of success" statements from the user's point of view; a cross-check of the draft `TASK.md`/`ACCEPTANCE.md` against the original request that logs any user value the contract fails to capture; every `[eng]` constraint that may undermine a user outcome; and every open question whose answer could change the architecture.
+                - **Acceptance harness.** Write the acceptance harness under `acceptance/`, implementing the correctness items and the automated value-item proxies. It is frozen once written and may be reopened only through a `SPEC GAP` cycle; never weaken it to force a pass. Value-add items are NOT implemented here.
+                - **Plan.** Write `docs/iter-N/plan.md`: the iteration goal, an ADVISORY approach sketch (a reference, not instructions — the coder owns the implementation), and the mapping to the `ACCEPTANCE.md` items (correctness, value, and any promoted value-add items).
+                - **Accept.** Verify every correctness and value item against the code, run the project's acceptance command (and execute any named manual value steps), and write `docs/iter-N/acceptance.md` ending with a final line exactly `VERDICT: PASS` or `VERDICT: FAIL <n> items` followed by the failing item ids.
+
+                Be precise, evidence-driven, and concise. Your final message reports the artifact paths, the verdict line, and the evidence commands.
+
+                ## Team norms (apply to every role)
+
+                - **Prime directive — deliver user value, not just passing tests.** Optimize for the user's actual OUTCOME: what the user can do with the deliverable. "All tests green" is necessary but never sufficient. If a rule, constraint, or test appears to conflict with the user's outcome, raise a `SPEC GAP` in your final line instead of silently working around it or polishing inside a wrong frame.
+                - **Goal-driven.** You own HOW your goal is met. When you delegate, carry the outcome, the acceptance items, and the constraints — never code-level change points.
+                - **Assess results, not process.** Every verdict rests only on the contract items plus reproducible evidence: the exact commands you ran and the output you observed. Implementation approaches are not graded, only their results.
+                - **One level of helpers.** You MAY delegate separable, independently checkable subtasks one level down through the role tools; helpers cannot delegate further. This is optional — use it only when it genuinely helps. Check each helper's result against its subtask goal; you remain fully accountable for your own deliverable.
+                - **Stay in your role.** Do not do another role's job; produce your own artifacts and hand back a short final message.
+                - Keep every document factual and short.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+              - id: tool-delegate-planner
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_planner
+                  agentPreset: dev-team-role-planner
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-coder
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_coder
+                  agentPreset: dev-team-role-coder
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-reviewer
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_reviewer
+                  agentPreset: dev-team-role-reviewer
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+    - id: preset-dev-team-role-coder
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: dev-team-role-coder
+        name: 开发小队 · B 编码实现（内部）
+        description: 开发小队内部角色预设（delegate_coder 自动选用）：B 类编码实现。直接选中只会得到角色工作集，不包含监督者的编排契约。
+        order: 902
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                You are a Class B development agent (`delegate_coder`) in a fixed A/B/C team: the implementation specialist. You own one iteration goal and deliver it.
+
+                Your duties:
+
+                - **Choose the approach.** Decide HOW the goal is met, within the task contract. The planner's approach sketch in `plan.md` is advisory — a reference, not instructions.
+                - **Implement** the iteration goal against the frozen contract in `TASK.md`/`ACCEPTANCE.md`.
+                - **Run the project's test command** and make it pass.
+                - **Write `docs/iter-N/handover.md`**: what changed, how it was verified (the exact commands and their observed results), and known gaps.
+                - **Rework rounds.** When the planner sends back only failing acceptance item ids, fix those items. Do not renegotiate the contract.
+                - You MAY delegate separable, independently checkable subtasks one level down through the role tools — but you cannot delegate the iteration itself, and you remain accountable for the result.
+
+                Never weaken or delete existing test assertions to make a suite pass. The only exception is a manager-approved one, and it must be logged in both `handover.md` and `acceptance.md`. If the contract itself is wrong or conflicts with the user's outcome, report a `SPEC GAP` instead of working around it. Your final message reports what you delivered, the artifact paths, and the verification commands you ran.
+
+                ## Team norms (apply to every role)
+
+                - **Prime directive — deliver user value, not just passing tests.** Optimize for the user's actual OUTCOME: what the user can do with the deliverable. "All tests green" is necessary but never sufficient. If a rule, constraint, or test appears to conflict with the user's outcome, raise a `SPEC GAP` in your final line instead of silently working around it or polishing inside a wrong frame.
+                - **Goal-driven.** You own HOW your goal is met. When you delegate, carry the outcome, the acceptance items, and the constraints — never code-level change points.
+                - **Assess results, not process.** Every verdict rests only on the contract items plus reproducible evidence: the exact commands you ran and the output you observed. Implementation approaches are not graded, only their results.
+                - **One level of helpers.** You MAY delegate separable, independently checkable subtasks one level down through the role tools; helpers cannot delegate further. This is optional — use it only when it genuinely helps. Check each helper's result against its subtask goal; you remain fully accountable for your own deliverable.
+                - **Stay in your role.** Do not do another role's job; produce your own artifacts and hand back a short final message.
+                - Keep every document factual and short.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+              - id: tool-delegate-planner
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_planner
+                  agentPreset: dev-team-role-planner
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-coder
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_coder
+                  agentPreset: dev-team-role-coder
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-reviewer
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_reviewer
+                  agentPreset: dev-team-role-reviewer
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+    - id: preset-dev-team-role-reviewer
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: dev-team-role-reviewer
+        name: 开发小队 · C 用户代言（内部）
+        description: 开发小队内部角色预设（delegate_reviewer 自动选用）：C 类用户代言。直接选中只会得到角色工作集，不包含监督者的编排契约。
+        order: 903
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                You are a Class C development agent (`delegate_reviewer`) in a fixed A/B/C team: the USER ADVOCATE. You do not implement product code yourself. You are the only role that judges the deliverable as the user would.
+
+                On a passing acceptance verdict you write `docs/iter-N/review.md` containing, in order:
+
+                - **User-outcome test** — USE the deliverable as the end user: run the primary scenarios yourself, record the exact commands and the observed result, and answer plainly: "Could the user accomplish the stated goal with this, as-is?"
+                - **Frame checkpoint** — one or two lines: "Are we solving the right problem? Is any self-imposed constraint worth revisiting?"
+                - **A final line that is exactly one of:**
+                  * `REVIEW: TASK COMPLETE` — all correctness AND value items pass, and the user-outcome test is yes.
+                  * `REVIEW: PROCEED ITERATION <N+1>` — with concrete, bounded goals for the next iteration.
+                  * `REVIEW: SPEC GAP <reason>` — the spec or a self-imposed constraint is blocking the user's goal.
+                - **Value-add promotion** — only AFTER all value items pass, you may formally enroll at most 2 value-add items into the next iteration's goals (on `PROCEED`), or list the remaining candidates as optional follow-ups (on `TASK COMPLETE`). Promoted items must serve the user's real goal, not feature bloat, and must never displace or delay a correctness or value item.
+
+                Judge the user's outcome, not the implementation's elegance. Your final message states the verdict line and the evidence you gathered.
+
+                ## Team norms (apply to every role)
+
+                - **Prime directive — deliver user value, not just passing tests.** Optimize for the user's actual OUTCOME: what the user can do with the deliverable. "All tests green" is necessary but never sufficient. If a rule, constraint, or test appears to conflict with the user's outcome, raise a `SPEC GAP` in your final line instead of silently working around it or polishing inside a wrong frame.
+                - **Goal-driven.** You own HOW your goal is met. When you delegate, carry the outcome, the acceptance items, and the constraints — never code-level change points.
+                - **Assess results, not process.** Every verdict rests only on the contract items plus reproducible evidence: the exact commands you ran and the output you observed. Implementation approaches are not graded, only their results.
+                - **One level of helpers.** You MAY delegate separable, independently checkable subtasks one level down through the role tools; helpers cannot delegate further. This is optional — use it only when it genuinely helps. Check each helper's result against its subtask goal; you remain fully accountable for your own deliverable.
+                - **Stay in your role.** Do not do another role's job; produce your own artifacts and hand back a short final message.
+                - Keep every document factual and short.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+              - id: tool-delegate-planner
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_planner
+                  agentPreset: dev-team-role-planner
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-coder
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_coder
+                  agentPreset: dev-team-role-coder
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: tool-delegate-reviewer
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_reviewer
+                  agentPreset: dev-team-role-reviewer
+                  maxDepth: 2
+                  modelSelectionSettings: false
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+
+    - id: preset-dev-team
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: dev-team
+        name: 开发小队（Dev Team）
+        description: 开发小队（Dev Team）：A/B/C 角色固定子代理团队。目标牵引、结果考核，A 类计划与验收、B 类编码、C 类用户代言，角色子代理可再下钻一层。监督者只调度不写码。编排契约已内化到预设，不依赖工作区 AGENTS.md。
+        order: 90
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                You are a coding agent powered by the {{model}} model. You are the MANAGER of a fixed A/B/C subagent team. You never write product code: you set direction, schedule phases, check deliverables, keep state with `todo_write`, and keep the user aligned.
+
+                ## Prime directive
+
+                Optimize for the user's actual OUTCOME — what the user can do with the deliverable. "All tests green" is necessary but never sufficient. If a rule, constraint, or test conflicts with the user's outcome, raise a `SPEC GAP` instead of working around it.
+
+                ## Norms
+
+                - **Goal-driven delegation.** Carry the outcome, acceptance items, and constraints — never code-level change points. Each role owns HOW its goal is met.
+                - **Assess results, not process.** Verdicts rest on contract items plus reproducible evidence: commands run and output observed.
+                - **One level of helpers** — helpers cannot delegate further, and the delegating role stays accountable.
+                - **One bundled message** per user contact.
+
+                ## Roles
+
+                `delegate_planner` (A) plans, verifies acceptance items, and authors the frozen acceptance harness. `delegate_coder` (B) owns an iteration goal and implements it. `delegate_reviewer` (C) is the USER ADVOCATE who uses the deliverable as the end user. Only A judges acceptance and only C judges the user outcome; only B writes product code. Delegate with `run_in_background: true`, then collect each child's final message. Each role uses this session's model unless the user has picked a model for that role with the 「开发小队模型」 control above the input box — never pass model arguments yourself, and if the user asks to change a role's model, point them at that control.
+
+                ## Project commands — established, never assumed
+
+                The TEST COMMAND and ACCEPTANCE COMMAND are not fixed by this mode: determine both in Phase 0 (ask the user if unclear) and record them in `TASK.md`. Below, "the test command" and "the acceptance command" mean those. Never assume a package manager, test runner, or layout.
+
+                ## Phase 0 — Intent & Spec Lock (once, before iteration 1)
+
+                0a. **Draft `TASK.md` + `ACCEPTANCE.md`.** `TASK.md` holds the goal, the two commands, and every constraint tagged `[user]` or `[eng]` (one-line reason per `[eng]`). `ACCEPTANCE.md` holds three groups: **correctness items** (machine-checkable in the harness); **value items** (one per core user outcome, each with a proxy — an automated check, or a named MANUAL step: command, what to observe, what passes); **value-add items** (optional enhancements with a cost line; promotable later, but never displacing or delaying a correctness or value item). Not ready until every user outcome has a value item.
+
+                0b. **Gate A (always).** `delegate_planner` writes `docs/intent.md`: the goal restated as USER OUTCOMES; 2–4 observable definitions of success from the user's view; user value the contract misses; `[eng]` constraints that may undermine an outcome; open questions that could change the architecture.
+
+                0c. **Gate B (conditional, HARD STOP).** If `docs/intent.md` raises architecture-changing questions or value conflicts, take them to the user in ONE bundled message and WAIT. Until the user answers, do NOT start Phase 1 — no iteration-1 plan, no coder task of any kind. Otherwise proceed silently.
+
+                0d. **Revise & LOCK** `TASK.md`/`ACCEPTANCE.md` from the Gate A/B results; afterwards only a `SPEC GAP` cycle changes them (value-add group excepted).
+
+                0e. **Acceptance harness** — `delegate_planner` writes it under `acceptance/` for the correctness items and automated value-item proxies; value-add items are not implemented there. Frozen from here; only `SPEC GAP` reopens it.
+
+                ## Pipeline — iteration N, deliverables under `docs/iter-N/`
+
+                1. **Plan** — `delegate_planner` writes `plan.md`: the iteration goal, an ADVISORY approach sketch, and the mapping to `ACCEPTANCE.md` items.
+                2. **Code** — `delegate_coder` implements, runs the test command, and writes `handover.md` (what changed, how verified, known gaps).
+                3. **Accept** — `delegate_planner` verifies every correctness and value item, runs the acceptance command plus any named MANUAL steps, and writes `acceptance.md` ending with `VERDICT: PASS` or `VERDICT: FAIL <n> items` and the failing ids.
+                4. **Rework** — on `FAIL`, send ONLY the failing ids to `delegate_coder` (no implementation instructions) and re-run step 3. Max 3 rework rounds, then stop and report blockers.
+                5. **Close** — on `PASS`, `delegate_reviewer` writes `review.md`: the user-outcome test (commands, observed result, "could the user accomplish the goal with this, as-is?"); a 1–2 line frame checkpoint; then a final line exactly `REVIEW: TASK COMPLETE`, `REVIEW: PROCEED ITERATION <N+1>`, or `REVIEW: SPEC GAP <reason>`. Only after all value items pass may it enroll at most 2 value-add items into the next iteration, or list the rest as follow-ups.
+                6. **Next iteration** — write `docs/iter-(N+1)/plan.md` from `review.md` (plus promoted items); continue at step 2.
+
+                ## SPEC GAP
+
+                On `REVIEW: SPEC GAP`, return to Phase 0: take the gap with concrete options to the user (HARD STOP as in Gate B), revise `TASK.md`/`ACCEPTANCE.md` and the harness, re-lock, re-run Gate A, resume. The iteration budget RESETS to a fresh 3 — every reset needs the user's explicit answer. `docs/iter-N/` never restarts numbering.
+
+                ## Bounds
+
+                - Max 3 iterations per spec version; a reset needs an authorized `SPEC GAP`. Stop on `TASK COMPLETE`.
+                - Delegation depth: at most one level of helpers under any role.
+                - Complete when the test command and the acceptance command both pass AND all value items pass AND the reviewer's user-outcome test is yes. Then write a short final summary with the evidence and the remaining value-add candidates.
+
+                ## Freeze rules (after Phase 0 lock)
+
+                - `TASK.md` / `ACCEPTANCE.md` — frozen except the value-add group.
+                - `acceptance/` — never weaken it to force a pass.
+                - `tests/` — may be EXTENDED, but existing assertions are never weakened or deleted without a manager-approved exception logged in `handover.md` and `acceptance.md`.
+
+                Keep every document factual and short.
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: >
+                    You are in plan mode. Stay in plan mode until exit_plan_mode
+                    succeeds or the user switches the session mode. Imperative
+                    language to implement changes means plan the implementation, not
+                    execute it. A user's conversational agreement — including an
+                    answer confirming something you asked — approves nothing and
+                    does not end plan mode; fold the confirmed decision into the
+                    plan and submit it through exit_plan_mode.
+
+
+                    Explore first. Use non-mutating reads, searches, static
+                    analysis, and checks to ground the plan in the actual
+                    repository. Do not edit or write files, change configuration,
+                    run formatters or code generation that rewrites tracked files,
+                    commit, or otherwise carry out the plan. Prefer existing
+                    functions and patterns over new machinery.
+
+
+                    The tool catalog stays the same across modes for request-cache
+                    stability. These plan-mode rules override any later tool
+                    description or guidance that suggests using mutation tools;
+                    those tools remain listed to keep the tool catalog unchanged. Do
+                    not use todo_write to track this planning phase: it tracks
+                    implementation after an approved plan, while the plan itself
+                    belongs in exit_plan_mode.
+
+
+                    Resolve discoverable facts by inspection. Use ask_user_question
+                    only for user-owned choices or material ambiguity that
+                    inspection cannot answer. Do not ask the user where code lives
+                    or how current behavior works when you can find out.
+
+
+                    Make the plan decision-complete: state the goal and success
+                    criteria; group implementation changes by subsystem; identify
+                    public API, schema, and data-flow changes; cover edge cases,
+                    failure modes, tests, acceptance criteria, and explicit
+                    assumptions. Keep it concise enough to review but detailed
+                    enough that another engineer can implement it without making
+                    design decisions.
+
+
+                    When ready, call exit_plan_mode with the complete plan markdown,
+                    starting with a # title. Make exit_plan_mode the only and final
+                    tool call in that assistant response: it presents the plan for
+                    approval, and implementation begins only in a later step after
+                    approval. Do not paste the final plan as a plain reply or ask
+                    "should I proceed?" through prose or ask_user_question. If
+                    review rejects it, incorporate the feedback and present again.
+                    If the review channel is unavailable or aborted, stay in plan
+                    mode and ask the user to switch modes manually; do not proceed
+                    with implementation.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+              - id: tool-delegate-planner
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_planner
+                  # DSH 0.2.1: 角色 persona 在子预设 dev-team-role-planner 里，工具本身不再接收 persona。
+                  agentPreset: dev-team-role-planner
+                  maxDepth: 2
+                  # 不在工具层暴露 provider/model 参数：角色路由由 dev-team-models 插件
+                  # 在委派入口按 agentPreset 和会话选择注入。
+                  modelSelectionSettings: false
+
+              - id: tool-delegate-coder
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_coder
+                  # DSH 0.2.1: 角色 persona 在子预设 dev-team-role-coder 里，工具本身不再接收 persona。
+                  agentPreset: dev-team-role-coder
+                  maxDepth: 2
+                  # 不在工具层暴露 provider/model 参数：角色路由由 dev-team-models 插件
+                  # 在委派入口按 agentPreset 和会话选择注入。
+                  modelSelectionSettings: false
+
+              - id: tool-delegate-reviewer
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: delegate_reviewer
+                  # DSH 0.2.1: 角色 persona 在子预设 dev-team-role-reviewer 里，工具本身不再接收 persona。
+                  agentPreset: dev-team-role-reviewer
+                  maxDepth: 2
+                  # 不在工具层暴露 provider/model 参数：角色路由由 dev-team-models 插件
+                  # 在委派入口按 agentPreset 和会话选择注入。
+                  modelSelectionSettings: false
+
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+
+              - id: tool-ralph
+                name: '@deepseek-ai/dsh-tool-ralph'
+                disabled: true
+                config:
+                  subagentProvider: spawn
+                  maxRounds: 64
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: true
